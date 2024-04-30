@@ -15,46 +15,25 @@
  *  PERFORMANCE OF THIS SOFTWARE.
  */
 
-const fs = require('fs');
 const assert = require('chai').assert
 
-const { defaultWallets: wallets } = require('../config/wallets.json');
-
-require('it-each')({ testPerIteration: true });
-const { Universal, MemoryAccount, Node } = require('@aeternity/aepp-sdk');
-const BONDING_CURVE_LINEAR_CONTRACT = fs.readFileSync('./contracts/BondCurveLinear.aes', 'utf-8',);
+require('it-each')({testPerIteration: true});
+const BONDING_CURVE_LINEAR_CONTRACT = './contracts/BondCurveLinear.aes';
 const testData = require('./data');
-
-const config = {
-  url: 'http://localhost:3001/',
-  internalUrl: 'http://localhost:3001/',
-  compilerUrl: 'http://localhost:3080',
-};
+const {utils, wallets} = require("@aeternity/aeproject");
 
 describe('Bonding Curve Contract', () => {
-  let client, contract;
+  let aeSdk, contract;
 
   before(async () => {
-    client = await Universal({
-      nodes: [
-        {
-          name: 'devnetNode',
-          instance: await Node(config),
-        },
-      ],
-      accounts: [
-        MemoryAccount({
-          keypair: wallets[0],
-        }),
-      ],
-      networkId: 'ae_devnet',
-      compilerUrl: config.compilerUrl,
-    });
+    aeSdk = utils.getSdk();
   });
 
   it('Deploying Bond Contract', async () => {
-    contract = await client.getContractInstance(BONDING_CURVE_LINEAR_CONTRACT).catch(console.error);
-    const init = await contract.methods.init();
+    contract = await aeSdk.initializeContract({
+      sourceCode: utils.getContractContent(BONDING_CURVE_LINEAR_CONTRACT)
+    });
+    const init = await contract.$deploy([]);
     assert.equal(init.result.returnType, 'ok');
   });
 
@@ -64,7 +43,7 @@ describe('Bonding Curve Contract', () => {
       'Should get buy price for supply %s',
       ['element'],
       (p, next) => {
-        contract.methods.buy_price(p.totalSupply).then((result) => {
+        contract.buy_price(p.totalSupply).then((result) => {
           assert.equal(
             result.decodedResult,
             p.totalSupply + 1,
@@ -82,7 +61,7 @@ describe('Bonding Curve Contract', () => {
       'Should get sell price for supply %s',
       ['element'],
       (p, next) => {
-        contract.methods.sell_price(p.totalSupply).then((result) => {
+        contract.sell_price(p.totalSupply).then((result) => {
           assert.equal(
             result.decodedResult,
             p.totalSupply,
@@ -100,7 +79,7 @@ describe('Bonding Curve Contract', () => {
       'Should calculate buy price for supply %s',
       ['element'],
       (p, next) => {
-        contract.methods
+        contract
           .calculate_buy_price(p.totalSupply, p.buy.amount)
           .then((result) => {
             assert.equal(
@@ -121,7 +100,7 @@ describe('Bonding Curve Contract', () => {
       ['element'],
       (p, next) => {
         if (p.totalSupply >= p.sell.amount) {
-          contract.methods
+          contract
             .calculate_sell_return(p.totalSupply, p.sell.amount)
             .then((result) => {
               assert.equal(
@@ -132,7 +111,7 @@ describe('Bonding Curve Contract', () => {
               next();
             });
         } else {
-          contract.methods
+          contract
             .calculate_sell_return(p.totalSupply, p.sell.amount)
             .then((result) => {
               assert.equal(
